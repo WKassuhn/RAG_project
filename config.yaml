@@ -1,0 +1,65 @@
+# =============================================================================
+# OLLAMA SERVER
+# =============================================================================
+ollama:
+  base_url: "http://localhost:11434"
+  timeout: 120
+
+# =============================================================================
+# LLM MODELS (generation / chat)
+# =============================================================================
+llm:
+  model: "llama3.2"
+  system_prompt: "You are a helpful assistant that answers questions based on provided context."
+  temperature: 0.7
+  max_tokens: 2048
+
+# =============================================================================
+# EMBEDDING MODELS (semantic search vectorization)
+# =============================================================================
+embedding:
+  model: "nomic-embed-text"
+  dimensions: 768
+  batch_size: 32
+
+# =============================================================================
+# RERANKING MODEL
+# =============================================================================
+reranking:
+  model: "jina-reranker-v1-base-en"
+  top_k: 5
+  score_threshold: 0.3
+
+# =============================================================================
+# BM25 KEYWORD SEARCH
+# =============================================================================
+bm25:
+  k1: 1.5
+  b: 0.75
+  language: "en"
+
+# =============================================================================
+# HYBRID SEARCH (combines BM25 + semantic)
+# =============================================================================
+hybrid_search:
+  alpha: 0.5              # weight for semantic vs keyword (0=keyword only, 1=semantic only)
+  retrieval_top_k: 20     # candidates before reranking
+
+# =============================================================================
+# RAG PIPELINE
+# =============================================================================
+rag:
+  chunk_size: 512
+  chunk_overlap: 64
+  max_context_length: 4096
+
+# =============================================================================
+# EVALUATION
+# =============================================================================
+evaluation:
+  model: "llama3.2"
+  metrics:
+    - relevance
+    - faithfulness
+    - answer_relevancy
+  ground_truth_path: "data/eval_ground_truth.jsonl"
