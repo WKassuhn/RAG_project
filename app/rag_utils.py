@@ -41,7 +41,25 @@ def _lazy_rerank():
 # ─── Caching BM25 Index ───────────────────────────────────────────────
 
 def _get_bm25_index(persist_directory: Path, collection_name: str):
-    """Get or load cached BM25 index."""
+    """Retrieve the BM25 index for a given collection, using a module-level cache.
+
+    Checks the in-memory cache for the requested index. If not found, loads it
+    from the corresponding pickle file on disk and stores it in the cache for
+    future lookups. This avoids redundant disk I/O for subsequent queries.
+
+    Args:
+        persist_directory: The directory path where the BM25 index is stored.
+        collection_name: The name of the collection to identify the specific
+                         index file (e.g., 'rag_collection').
+
+    Returns:
+        A dictionary containing the loaded BM25 model and associated document IDs.
+
+    Raises:
+        FileNotFoundError: If the pickle file for the specified collection does
+                           not exist in the persist directory.
+        pickle.UnpicklingError: If the file is corrupted or cannot be deserialized.
+    """
     cache_key = str(persist_directory) + collection_name
     if cache_key not in _BM25_CACHE:
         bm25_path = persist_directory / f"{collection_name}_bm25.pkl"
@@ -409,8 +427,30 @@ def ai_rerank_documents(
     top_k: int = 3,
     score_threshold: float = 0.3
 ) -> List["LCDocument"]:
-    """Reranks documents locally using a Hugging Face Cross-Encoder model.
+    """Rerank documents locally using a Hugging Face Cross-Encoder model.
 
+    Scores each document based on its relevance to the query, filters out
+    documents below a relevance threshold, and returns the top-k most
+    relevant documents.
+
+    Args:
+        query: The user query string to evaluate relevance against.
+        documents: A list of LangChain Document objects to rerank.
+        model: The Hugging Face Cross-Encoder model name to use for scoring
+               (e.g., "BAAI/bge-reranker-base").
+        top_k: The maximum number of documents to return after filtering.
+        score_threshold: The minimum relevance score required for a document
+                         to be included in the results.
+
+    Returns:
+        A list of LangChain Document objects sorted by relevance score in
+        descending order. Each document's metadata will include a
+        "relevance_score" key.
+
+    Note:
+        If an error occurs during reranking, the function falls back to
+        returning the first `top_k` documents from the original list without
+        reranking.
     """
     if not documents:
         return []
