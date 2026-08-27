@@ -177,7 +177,7 @@ def load_json_documents(
 @lru_cache(maxsize=1)
 def _get_cached_embedder(model_name: str) -> "HuggingFaceEmbeddings":
     HuggingFaceEmbeddings = (_lazy_embeddings())
-    return HuggingFaceEmbeddings(model_name=model_name,)
+    return HuggingFaceEmbeddings(model_name=model_name)
 
 
 def create_chroma_rag(
