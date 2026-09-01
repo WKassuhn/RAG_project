@@ -1,10 +1,11 @@
 """Utilities for reading config, checking Ollama server status and Query handling."""
 
 import requests
-from typing import Optional, List, Dict
 import json
 import yaml
-from pathlib import Path
+from typing import List
+from presidio_analyzer import AnalyzerEngine
+from presidio_anonymizer import AnonymizerEngine
 
 
 # ─── Config ───────────────────────────────────────────────────────────
@@ -101,10 +102,17 @@ def load_queries(path: str = "queries.json") -> list[dict]:
     except json.JSONDecodeError as e:
         print(f"Error decoding JSON from {path}: {e}")
         return []
-    
 
 
-def _clean_harmful_content(text: str) -> str:
+# ─── Clean Queries ────────────────────────────────────────────────────
+
+def init_presidio() -> tuple["AnalyzerEngine", "AnonymizerEngine"]:
+    """Initialisiert die Presidio Engines einmalig beim Start."""
+    print("Loading Presidio NLP models...")
+    return AnalyzerEngine(), AnonymizerEngine()
+
+
+def clean_harmful_content(text: str) -> str:
     """
     Removes harmful content from a query.
 
@@ -137,36 +145,45 @@ def _clean_harmful_content(text: str) -> str:
     return cleaned_text
 
 
-def process_and_clean_queries(raw_queries: List[str]) -> List[str]:
+def clean_single_query(query_text: str, analyzer: AnalyzerEngine, anonymizer: AnonymizerEngine) -> str:
     """
-    """
-    from presidio_analyzer import AnalyzerEngine
-    from presidio_anonymizer import AnonymizerEngine
+    Args:
+        query_text:
+        analyzer:
+        anonymizer:
 
-    analyzer = AnalyzerEngine()
-    anonymizer = AnonymizerEngine()
+    Return:
+
+    """
+    if not query_text or not query_text.strip():
+        return ""
+        
+    # 1. PII anonymisieren
+    analysis_results = analyzer.analyze(text=query_text, language="en")
+    anonymized_result = anonymizer.anonymize(text=query_text, analyzer_results=analysis_results)
     
+    # 2. Schadcode filtern
+    return clean_harmful_content(anonymized_result.text)
+
+
+def process_and_clean_queries(raw_queries: list, analyzer: AnalyzerEngine, anonymizer: AnonymizerEngine) -> List[str]:
+    """
+    Args
+        raw_queries:
+        analyzer:
+        anonymizer:
+
+    Return:
+        
+    """
     cleaned_queries = []
-
     for query_item in raw_queries:
-
-        query_text = ""
         if isinstance(query_item, dict):
-            query_text = query_item.get("description")
+            query_text = query_item.get("query") or query_item.get("text") or str(query_item)
         else:
             query_text = str(query_item)
             
-        if not query_text.strip():
-            continue
-        
-        analysis_results = analyzer.analyze(text=query_text, language="en")
-        anonymized_result = anonymizer.anonymize(text=query_text, analyzer_results=analysis_results)
-        pii_free_text = anonymized_result.text
-        
-        final_clean_text = _clean_harmful_content(pii_free_text)
-        
-        if final_clean_text.strip():
-            cleaned_queries.append(final_clean_text)
-            
+        cleaned = clean_single_query(query_text, analyzer, anonymizer)
+        if cleaned:
+            cleaned_queries.append(cleaned)
     return cleaned_queries
-
