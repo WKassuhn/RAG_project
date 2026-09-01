@@ -9,3 +9,4 @@ services:
       - .:/app
     environment:
       - PYTHONUNBUFFERED=1
+      - QUERY_FILE_PATH=/data/my_queries.json

@@ -1,7 +1,8 @@
 """Utilities for reading config, checking Ollama server status and Query handling."""
 
 import requests
-from typing import Optional
+from typing import Optional, List, Dict
+import json
 import yaml
 from pathlib import Path
 
@@ -57,7 +58,6 @@ def does_model_exist(model_name: str = None, host: str = None) -> bool:
     Returns:
         True if the model is available on the server, False otherwise.
     """
-
     if not model_name:
         pass 
 
@@ -77,16 +77,96 @@ def does_model_exist(model_name: str = None, host: str = None) -> bool:
 
 # ─── Queriy Loading ───────────────────────────────────────────────────
 
-def load_queries():
+def load_queries(path: str = "queries.json") -> list[dict]:
     """
-    """
-    return 1
+    Loads one or more support ticket queries from a JSON file.
 
-def clean_queries():
+    Args:
+        path: The path to the JSON file containing the queries.
+
+    Returns:
+        A list of dictionaries, where each dictionary contains 
+        'id', 'title', and 'description'.
     """
-    """
-    import presidio_anonymizer
-    import presidio_analyzer
+    try:
+        with open(path, 'r', encoding='utf-8') as f:
+            data = json.load(f)
+        
+        if not isinstance(data, list):
+            return [data] if data else []
+        return data
+    except FileNotFoundError:
+        print(f"Warning: Query file not found at {path}")
+        return []
+    except json.JSONDecodeError as e:
+        print(f"Error decoding JSON from {path}: {e}")
+        return []
     
-    return 1
+
+
+def _clean_harmful_content(text: str) -> str:
+    """
+    Removes harmful content from a query.
+
+    Args:
+        text: The query text.
+
+    Return:
+        The processed query without harmulf content or PII.
+    """
+    import re
+
+    if not text:
+        return ""
+        
+    # Replace common prompt injection phrases
+    harmful_patterns = [
+        r"(ignore|override)\s+(all\s+)?(previous|prior)\s+(instructions|directives|prompts)",
+        r"you\s+are\s+now\s+a\s+(bot|assistant|developer|admin)",
+        r"system\s+prompt",
+        r"unrestrict\s+mode"
+    ]
+    
+    cleaned_text = text
+    for pattern in harmful_patterns:
+        cleaned_text = re.sub(pattern, "[REMOVED_INSTRUCTION]", cleaned_text, flags=re.IGNORECASE)
+        
+    cleaned_text = "".join(ch for ch in cleaned_text if ch.isprintable() or ch in ("\n", "\r", "\t"))
+    cleaned_text = re.sub(r'\s+', ' ', cleaned_text).strip()
+    
+    return cleaned_text
+
+
+def process_and_clean_queries(raw_queries: List[str]) -> List[str]:
+    """
+    """
+    from presidio_analyzer import AnalyzerEngine
+    from presidio_anonymizer import AnonymizerEngine
+
+    analyzer = AnalyzerEngine()
+    anonymizer = AnonymizerEngine()
+    
+    cleaned_queries = []
+
+    for query_item in raw_queries:
+
+        query_text = ""
+        if isinstance(query_item, dict):
+            query_text = query_item.get("description")
+        else:
+            query_text = str(query_item)
+            
+        if not query_text.strip():
+            continue
+        
+        analysis_results = analyzer.analyze(text=query_text, language="en")
+        anonymized_result = anonymizer.anonymize(text=query_text, analyzer_results=analysis_results)
+        pii_free_text = anonymized_result.text
+        
+        final_clean_text = _clean_harmful_content(pii_free_text)
+        
+        if final_clean_text.strip():
+            cleaned_queries.append(final_clean_text)
+            
+    return cleaned_queries
 
